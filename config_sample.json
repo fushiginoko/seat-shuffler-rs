@@ -1,0 +1,15 @@
+{
+  "student_count": 6,
+  "seat_max": 5,
+  "front_seat_max": 2,
+  "seat_model": [
+    [0, 1, 2],
+    [3, 4, 5]
+  ],
+  "student_names": ["Alice", "Bob", "Charlie", "David", "Eve", "Frank"],
+  "history": [
+    [0, 1, 2, 3, 4, 5],
+    [5, 4, 3, 2, 1, 0]
+  ],
+  "front_student_num": [1, 4]
+}
