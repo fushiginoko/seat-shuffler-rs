@@ -1,4 +1,4 @@
-# Seat changer
+# Seat shuffler
 This program was created to shuffle seats for my high school class, written in Rust.
 
 ## How to use
