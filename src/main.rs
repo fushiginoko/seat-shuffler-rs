@@ -4,16 +4,30 @@ use std::collections::HashMap;
 use std::fs::File;
 use std::io::BufReader;
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct Student {
+    pub student_no: String,
+    pub name: String,
+    pub romaji: String,
+    pub gender: String,
+    #[serde(default)]
+    pub is_dorm: bool,
+    #[serde(default)]
+    pub is_abroad: bool,
+    pub fixed_seat: Option<i32>,
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 struct Data {
-    student_count: usize,
-    seat_max: i32,
-    front_seat_max: i32,
-    seat_model: Vec<Vec<i32>>,
-    student_names: Vec<String>,
-    history: Vec<Vec<i32>>,
-    front_student_num: Vec<i32>,
-    separation_groups: Vec<Vec<usize>>,
+    pub title: String,
+    pub teacher_name: Option<String>,
+    pub sub_teacher_name: Option<String>,
+    pub front_rows: usize,
+    pub seat_model: Vec<Vec<i32>>,
+    pub students: Vec<Student>,
+    pub history: Vec<Vec<i32>>,
+    pub front_student_num: Vec<i32>,
+    pub separation_groups: Vec<Vec<usize>>,
 }
 
 fn read_json() -> Result<Data, Box<dyn std::error::Error>> {
@@ -32,16 +46,23 @@ struct Config {
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let data: Data = read_json()?;
     let config = Config {
-        student_count: data.student_count,
-        seat_max: data.seat_max,
-        front_seat_max: data.front_seat_max,
+        student_count: data.students.len(),
+        seat_max: data.seat_model.iter().flatten().copied().max().unwrap_or(0),
+        front_seat_max: data
+            .seat_model
+            .iter()
+            .take(data.front_rows)
+            .flatten()
+            .copied()
+            .max()
+            .unwrap_or(0),
     };
 
     // 設定
     // 座席の形
     let seat_model: Vec<Vec<i32>> = data.seat_model;
-    // 生徒名簿（出席番号順）
-    let _student_names: Vec<String> = data.student_names;
+    // 生徒情報
+    let students: Vec<Student> = data.students;
     // 過去の座席配置の履歴
     let history: Vec<Vec<i32>> = data.history;
     // 前列指定の生徒の内部番号
