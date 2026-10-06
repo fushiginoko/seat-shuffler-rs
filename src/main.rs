@@ -60,7 +60,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Ok(());
     }
 
-    let max_retries = 100;
+    let max_retries = 1000;
     let mut retry_count = 0;
     loop {
         if retry_count > max_retries {
