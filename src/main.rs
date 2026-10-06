@@ -39,17 +39,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 設定
     // 座席の形
-    let _seat_model: Vec<Vec<i32>> = data.seat_model;
+    let seat_model: Vec<Vec<i32>> = data.seat_model;
     // 生徒名簿（出席番号順）
     let _student_names: Vec<String> = data.student_names;
     // 過去の座席配置の履歴
     let history: Vec<Vec<i32>> = data.history;
     // 前列指定の生徒の内部番号
     let front_student_num: Vec<i32> = data.front_student_num; // 内部番号なので、実際には+1した番号の名簿番号の人が対象
+    // お互いに席を離すグループ
+    let separation_groups: Vec<Vec<usize>> = data.separation_groups;
 
     let never_per_s = make_never_per_s(&make_history_per_s(&history, &config), &config);
     let front_per_s = make_front_per_s(&front_student_num, &config);
     let available_per_s = make_available_per_s(&never_per_s, &front_per_s);
+    let coord_map = build_coord_map(&seat_model);
 
     // 誰かの使用可能な座席が存在しないと、エラーメッセージを出して終了する
     if available_per_s.contains(&vec![]) {
@@ -69,12 +72,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         match make_seats(&available_per_s) {
             Ok(seats) => {
-                if retry_count > 0 {
-                    println!("{}回リトライしました", retry_count);
+                if is_separation_valid(&seats, &separation_groups, &coord_map) {
+                    if retry_count > 0 {
+                        println!("{}回リトライしました", retry_count);
+                    }
+                    println!("完成した座席");
+                    println!("{:?}", seats);
+                    break;
                 }
-                println!("完成した座席");
-                println!("{:?}", seats);
-                break;
+                retry_count += 1;
             }
             Err(_) => retry_count += 1,
         }
