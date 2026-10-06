@@ -73,6 +73,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let never_per_s = make_never_per_s(&make_history_per_s(&history, &config), &config);
     let front_per_s = make_front_per_s(&front_student_num, &config);
     let available_per_s = make_available_per_s(&never_per_s, &front_per_s);
+    let available_per_s = apply_fixed_seats(&available_per_s, &students);
     let coord_map = build_coord_map(&seat_model);
 
     // 誰かの使用可能な座席が存在しないと、エラーメッセージを出して終了する
@@ -183,6 +184,26 @@ fn make_seats(available_per_s: &[Vec<i32>]) -> Result<Vec<i32>, String> {
         seats[i] = seat
     }
     Ok(seats)
+}
+
+// 固定席ルールをドメインに反映する関数
+fn apply_fixed_seats(available_per_s: &[Vec<i32>], students: &[Student]) -> Vec<Vec<i32>> {
+    let all_fixed: Vec<i32> = students.iter().filter_map(|s| s.fixed_seat).collect();
+    available_per_s
+        .iter()
+        .enumerate()
+        .map(|(i, available)| {
+            if let Some(fixed) = students[i].fixed_seat {
+                vec![fixed] // 固定の生徒は1席だけ！
+            } else {
+                available
+                    .iter()
+                    .filter(|&&s| !all_fixed.contains(&s))
+                    .copied()
+                    .collect()
+            }
+        })
+        .collect()
 }
 
 // 「してはならない」の条件で使う判定関数（真偽値を返す）
