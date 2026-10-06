@@ -1,5 +1,6 @@
 use rand::seq::IteratorRandom;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::fs::File;
 use std::io::BufReader;
 
@@ -12,6 +13,7 @@ struct Data {
     student_names: Vec<String>,
     history: Vec<Vec<i32>>,
     front_student_num: Vec<i32>,
+    separation_groups: Vec<Vec<usize>>,
 }
 
 fn read_json() -> Result<Data, Box<dyn std::error::Error>> {
@@ -80,6 +82,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+// 「しなければならない」の条件に使う生成関数（配列を返す）
 // 生徒ごとの座ったことのある座席の配列を作成
 fn make_history_per_s(history: &[Vec<i32>], config: &Config) -> Vec<Vec<i32>> {
     let mut history_per_s: Vec<Vec<i32>> = Vec::new();
@@ -153,4 +156,46 @@ fn make_seats(available_per_s: &[Vec<i32>]) -> Result<Vec<i32>, String> {
         seats[i] = seat
     }
     Ok(seats)
+}
+
+// 「してはならない」の条件で使う判定関数（真偽値を返す）
+
+type CoordMap = HashMap<i32, (usize, usize)>;
+
+fn build_coord_map(seat_model: &[Vec<i32>]) -> CoordMap {
+    let mut map = HashMap::new();
+    for (r, row) in seat_model.iter().enumerate() {
+        for (c, &val) in row.iter().enumerate() {
+            map.insert(val, (r, c));
+        }
+    }
+    map
+}
+
+fn is_separation_valid(
+    seats: &[i32],
+    separation_groups: &[Vec<usize>],
+    coord_map: &CoordMap,
+) -> bool {
+    separation_groups.iter().all(|group| {
+        // 座標が見つからない座席があれば None → 不正として false にする
+        let Some(coords) = group
+            .iter()
+            .map(|&i| coord_map.get(&seats[i]).copied())
+            .collect::<Option<Vec<(usize, usize)>>>()
+        else {
+            return false;
+        };
+
+        // グループ内の全ペアのチェビシェフ距離が2以上か確認
+        coords.iter().enumerate().all(|(i, &a)| {
+            coords[i + 1..]
+                .iter()
+                .all(|&b| chebyshev_distance(a, b) >= 2)
+        })
+    })
+}
+
+fn chebyshev_distance((r1, c1): (usize, usize), (r2, c2): (usize, usize)) -> usize {
+    r1.abs_diff(r2).max(c1.abs_diff(c2))
 }
