@@ -1,6 +1,3 @@
-### 📄 `README.md`
-
-```markdown
 # seat-shuffler
 
 > 制約充足問題（CSP）ソルバーを搭載した、教育現場向け座席配置最適化デスクトップアプリケーション。
@@ -130,4 +127,3 @@ export interface Data {
 ## ライセンス (License)
 
 MIT License © 2026 fushiginoko
-```
