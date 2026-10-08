@@ -48,7 +48,7 @@ export function Sidebar({ data, patch, run, busy }: Props) {
         {tab === "groups" && <Groups data={data} patch={patch} />}
       </div>
 
-      <div className="border-t border-slate-300 bg-white p-3">
+      <div className="border-t border-slate-300 bg-white p-3 space-y-2">
         <button
           onClick={run}
           disabled={busy}
