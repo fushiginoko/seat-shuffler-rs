@@ -245,7 +245,14 @@ export default function App() {
       </main>
 
       {toast && (
-        <div role="status" className={`fixed bottom-20 left-6 z-10 max-w-md rounded border px-4 py-3 text-sm shadow-lg print:hidden ${toast.err ? "border-rose-400 bg-rose-50 text-rose-900" : "border-slate-400 bg-white text-slate-900"}`}>
+        <div
+          role="status"
+          className={`fixed bottom-6 right-6 z-50 max-w-md rounded border px-4 py-3 text-sm shadow-lg print:hidden ${
+            toast.err
+              ? "border-rose-400 bg-rose-50 text-rose-900"
+              : "border-slate-400 bg-white text-slate-900"
+          }`}
+        >
           {toast.msg}
         </div>
       )}
