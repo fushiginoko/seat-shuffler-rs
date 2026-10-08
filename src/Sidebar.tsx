@@ -216,7 +216,7 @@ function Roster({ data, patch }: Omit<Props, "run" | "busy">) {
       <details className="rounded border border-slate-300 bg-white p-2">
         <summary className="cursor-pointer text-sm text-slate-800">名簿を一括貼り付け</summary>
         <p className="my-1 text-xs text-slate-600">1行1名。番号,ローマ字,性別,氏名（カンマまたはタブ区切り。Excelからそのまま貼れます）</p>
-        <textarea className={`${inp} h-28 font-mono text-xs`} value={paste} onChange={(e) => setPaste(e.target.value)} placeholder={"1,AOKI Taro,男,青木 太郎\n2,ISHIDA Hanako,女,石田 花子"} />
+        <textarea className={`${inp} h-28 font-mono text-xs`} value={paste} onChange={(e) => setPaste(e.target.value)} placeholder={"1,Yamada Taro,男,山田 太郎\n2,Ishida Hanako,女,石田 花子"} />
         <button className={`${btn2} mt-2`} onClick={importPaste}>末尾に追加</button>
       </details>
     </div>
