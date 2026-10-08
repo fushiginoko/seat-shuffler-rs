@@ -1,8 +1,6 @@
 use rand::seq::IteratorRandom;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::fs::File;
-use std::io::BufReader;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Student {
@@ -17,8 +15,9 @@ pub struct Student {
     pub fixed_seat: Option<i32>,
 }
 
+// struct Data を pub にしただけ（フィールドは無変更）
 #[derive(Serialize, Deserialize, Debug)]
-struct Data {
+pub struct Data {
     pub title: String,
     pub teacher_name: Option<String>,
     pub sub_teacher_name: Option<String>,
@@ -30,11 +29,11 @@ struct Data {
     pub separation_groups: Vec<Vec<usize>>,
 }
 
-fn read_json() -> Result<Data, Box<dyn std::error::Error>> {
-    let file = File::open("config.json")?;
-    let reader = BufReader::new(file);
-    let data: Data = serde_json::from_reader(reader)?;
-    Ok(data)
+#[derive(Serialize)]
+pub struct SolveResult {
+    /// seats[i] = i 番目の生徒（students 配列順）の座席番号
+    pub seats: Vec<i32>,
+    pub retries: usize,
 }
 
 struct Config {
@@ -43,10 +42,23 @@ struct Config {
     front_seat_max: i32,
 }
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let data: Data = read_json()?;
+// async にすることで、リトライ中も UI スレッドをブロックしない
+#[tauri::command]
+async fn solve_seats(data: Data) -> Result<SolveResult, String> {
+    let n = data.students.len();
+    if n == 0 {
+        return Err("名簿が空です。生徒を追加してください。".into());
+    }
+    // 元コードは範囲外アクセスでパニックするため、入口で検証する
+    if data.history.iter().any(|row| row.len() != n) {
+        return Err("履歴の人数と名簿の人数が一致しません。履歴をクリアしてください。".into());
+    }
+    if data.separation_groups.iter().flatten().any(|&i| i >= n) {
+        return Err("離すグループに存在しない生徒が含まれています。".into());
+    }
+
     let config = Config {
-        student_count: data.students.len(),
+        student_count: n,
         seat_max: data.seat_model.iter().flatten().copied().max().unwrap_or(0),
         front_seat_max: data
             .seat_model
@@ -58,56 +70,47 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .unwrap_or(0),
     };
 
-    // 設定
-    // 座席の形
-    let seat_model: Vec<Vec<i32>> = data.seat_model;
-    // 生徒情報
-    let students: Vec<Student> = data.students;
-    // 過去の座席配置の履歴
-    let history: Vec<Vec<i32>> = data.history;
-    // 前列指定の生徒の内部番号
-    let front_student_num: Vec<i32> = data.front_student_num; // 内部番号なので、実際には+1した番号の名簿番号の人が対象
-    // お互いに席を離すグループ
-    let separation_groups: Vec<Vec<usize>> = data.separation_groups;
-
-    let never_per_s = make_never_per_s(&make_history_per_s(&history, &config), &config);
-    let front_per_s = make_front_per_s(&front_student_num, &config);
+    let never_per_s = make_never_per_s(&make_history_per_s(&data.history, &config), &config);
+    let front_per_s = make_front_per_s(&data.front_student_num, &config);
     let available_per_s = make_available_per_s(&never_per_s, &front_per_s);
-    let available_per_s = apply_fixed_seats(&available_per_s, &students);
-    let coord_map = build_coord_map(&seat_model);
+    let available_per_s = apply_fixed_seats(&available_per_s, &data.students);
+    let coord_map = build_coord_map(&data.seat_model);
 
-    // 誰かの使用可能な座席が存在しないと、エラーメッセージを出して終了する
-    if available_per_s.contains(&vec![]) {
-        println!("この条件で使用可能な座席が存在しません！");
-        return Ok(());
+    if available_per_s.iter().any(|v| v.is_empty()) {
+        return Err("この条件で使用可能な座席が存在しない生徒がいます。前列指定・固定席・履歴を見直してください。".into());
     }
 
     let max_retries = 1000;
-    let mut retry_count = 0;
-    loop {
-        if retry_count > max_retries {
-            println!(
-                "{}回リトライしましたが失敗しました。条件を見直してください",
-                max_retries
-            );
-            return Ok(());
-        }
-        match make_seats(&available_per_s) {
-            Ok(seats) => {
-                if is_separation_valid(&seats, &separation_groups, &coord_map) {
-                    if retry_count > 0 {
-                        println!("{}回リトライしました", retry_count);
-                    }
-                    println!("完成した座席");
-                    println!("{:?}", seats);
-                    break;
-                }
-                retry_count += 1;
+    for retry_count in 0..=max_retries {
+        if let Ok(seats) = make_seats(&available_per_s) {
+            if is_separation_valid(&seats, &data.separation_groups, &coord_map) {
+                return Ok(SolveResult {
+                    seats,
+                    retries: retry_count,
+                });
             }
-            Err(_) => retry_count += 1,
         }
     }
-    Ok(())
+    Err(format!(
+        "{}回リトライしましたが失敗しました。条件を見直してください。",
+        max_retries
+    ))
+}
+
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
+pub fn run() {
+    tauri::Builder::default()
+        .plugin(tauri_plugin_process::init())
+        .setup(|app| {
+            // updater はデスクトップ専用。モバイルビルドでコンパイルエラーにならないよう cfg で限定する
+            #[cfg(desktop)]
+            app.handle()
+                .plugin(tauri_plugin_updater::Builder::new().build())?;
+            Ok(())
+        })
+        .invoke_handler(tauri::generate_handler![solve_seats])
+        .run(tauri::generate_context!())
+        .expect("Tauri の起動に失敗しました");
 }
 
 // 「しなければならない」の条件に使う生成関数（配列を返す）

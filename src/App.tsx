@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { flushSync } from "react-dom";
 import { invoke } from "@tauri-apps/api/core";
-import { GraduationCap, Eye, History, Printer } from "lucide-react";
+import { GraduationCap, Eye, History, Plus, Printer, Wrench } from "lucide-react";
 import { Sidebar } from "./Sidebar";
 import { SeatCard } from "./SeatCard";
-import { makeSeatModel } from "./types";
+import { makeSeatModel, toggleSeat } from "./types";
 import type { Data, SolveResult, View } from "./types";
 
 interface AppState {
@@ -49,6 +49,7 @@ export default function App() {
   const [st, setSt] = useState<AppState>(initial);
   const [view, setView] = useState<View>("student");
   const [busy, setBusy] = useState(false);
+  const [editMode, setEditMode] = useState(false);
   const [toast, setToast] = useState<{ msg: string; err: boolean } | null>(null);
   const { data, seats } = st;
 
@@ -86,9 +87,38 @@ export default function App() {
   // 画面を切り替えてから印刷し、終わったら元の視点に戻す
   const printAs = (v: View) => {
     const prev = view;
-    flushSync(() => setView(v));
+    const prevEdit = editMode;
+    flushSync(() => {
+      setView(v);
+      setEditMode(false); // 編集用の点線枠が印刷に出ないようにする
+    });
     window.print();
     setView(prev);
+    setEditMode(prevEdit);
+  };
+
+  // 座席 ⇄ 空白を切り替え、番号を振り直す。履歴・固定席・現在の配置は同じマスの新番号へ付け替える
+  const toggleCell = (r: number, c: number) => {
+    const { model, map } = toggleSeat(data.seat_model, r, c);
+    const moved = seats.map((x) => map.get(x));
+    const keep = moved.every((x) => x !== undefined);
+    const lostFixed = data.students.filter((s) => s.fixed_seat != null && !map.has(s.fixed_seat)).length;
+    setSt((s) => ({
+      ...s,
+      data: {
+        ...s.data,
+        seat_model: model,
+        history: s.data.history.map((h) => h.map((x) => (x < 0 ? x : (map.get(x) ?? -1)))),
+        students: s.data.students.map((x) =>
+          x.fixed_seat == null ? x : { ...x, fixed_seat: map.get(x.fixed_seat) ?? null },
+        ),
+      },
+      seats: keep ? (moved as number[]) : [],
+      retries: keep ? s.retries : null,
+      updatedAt: today(),
+    }));
+    const notes = [!keep && "席を消したため現在の配置をクリアしました", lostFixed > 0 && `固定席が消えた生徒 ${lostFixed} 名の固定を解除しました`].filter(Boolean);
+    if (notes.length) setToast({ msg: notes.join("。"), err: true });
   };
 
   // 生徒index → 座席。未実行のときは固定席だけを仮表示する
@@ -101,6 +131,7 @@ export default function App() {
 
   const grid = view === "teacher" ? [...data.seat_model].reverse().map((r) => [...r].reverse()) : data.seat_model;
   const cols = data.seat_model[0]?.length ?? 1;
+  const rows = data.seat_model.length;
   const count = (g: string) => data.students.filter((s) => s.gender === g).length;
   const canCommit = seats.length > 0 && seats.length === data.students.length;
 
@@ -122,6 +153,13 @@ export default function App() {
               <GraduationCap className="size-4" />先生視点（教卓が下）
             </button>
           </div>
+          <button
+            className={`inline-flex items-center gap-1.5 rounded border px-3 py-1.5 text-sm ${editMode ? "border-slate-900 bg-slate-900 font-bold text-white" : "border-slate-300 bg-white text-slate-800 hover:bg-slate-100"}`}
+            aria-pressed={editMode}
+            onClick={() => setEditMode((e) => !e)}
+          >
+            <Wrench className="size-4" />レイアウト変更モード
+          </button>
           <button className={btn} disabled={!canCommit} onClick={addHistory}><History className="size-4" />履歴に追加</button>
           <div className="ml-auto flex gap-2">
             <button className={btn} onClick={() => printAs("student")}><Printer className="size-4" />生徒用印刷</button>
@@ -143,15 +181,52 @@ export default function App() {
             </span>
           </header>
 
+          {editMode && (
+            <p className="rounded border border-slate-400 bg-slate-50 px-3 py-1.5 text-sm text-slate-800 print:hidden">
+              レイアウト変更モード：マスをクリックすると「座席 ⇄ 空白」が切り替わり、座席番号は左上から自動で振り直されます（現在 {data.seat_model.flat().filter((v) => v >= 0).length} 席 / 生徒 {data.students.length} 名）。
+            </p>
+          )}
+
           {view === "student" && <Board label="黒板" />}
 
           <div className="grid min-h-0 flex-1 gap-1.5 print:gap-1" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`, gridAutoRows: "minmax(0, 1fr)" }}>
-            {grid.flat().map((no, k) =>
-              no < 0 ? (
-                <div key={k} aria-hidden />
-              ) : (
-                <SeatCard key={k} seatNo={no} student={bySeat.has(no) ? data.students[bySeat.get(no)!] : undefined} />
-              ),
+            {grid.flatMap((row, r) =>
+              row.map((no, c) => {
+                const k = r * cols + c;
+                // 先生視点は反転表示なので、クリック先は元のモデル座標へ戻す
+                const or = view === "teacher" ? rows - 1 - r : r;
+                const oc = view === "teacher" ? cols - 1 - c : c;
+                if (no < 0) {
+                  // 通常時は枠なしの通路。編集中だけ「席を追加できる」点線枠を出す
+                  return editMode ? (
+                    <button
+                      key={k}
+                      type="button"
+                      aria-label="ここに席を追加"
+                      onClick={() => toggleCell(or, oc)}
+                      className="flex items-center justify-center rounded-md border border-dashed border-slate-300 text-slate-300 hover:border-slate-800 hover:bg-slate-50 hover:text-slate-800"
+                    >
+                      <Plus className="size-5" />
+                    </button>
+                  ) : (
+                    <div key={k} aria-hidden />
+                  );
+                }
+                const card = <SeatCard seatNo={no} student={bySeat.has(no) ? data.students[bySeat.get(no)!] : undefined} />;
+                return editMode ? (
+                  <button
+                    key={k}
+                    type="button"
+                    aria-label={`座席${no}を空白にする`}
+                    onClick={() => toggleCell(or, oc)}
+                    className="grid min-h-0 min-w-0 cursor-pointer rounded-md text-left ring-2 ring-slate-300 hover:ring-slate-900"
+                  >
+                    {card}
+                  </button>
+                ) : (
+                  <div key={k} className="grid min-h-0 min-w-0">{card}</div>
+                );
+              }),
             )}
           </div>
 

@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Loader2, Plus, Shuffle, Trash2, X } from "lucide-react";
 import { makeSeatModel, newStudent, seatCount } from "./types";
+import { UpdateChecker } from "./UpdateChecker";
 import type { Data, Student } from "./types";
 
 type Patch = (f: (d: Data) => Data, clearSeats?: boolean) => void;
@@ -26,7 +27,7 @@ export function Sidebar({ data, patch, run, busy }: Props) {
   ] as const;
 
   return (
-    <aside className="flex w-[480px] shrink-0 flex-col border-r border-slate-300 bg-slate-50 print:hidden">
+    <aside className="flex w-120 shrink-0 flex-col border-r border-slate-300 bg-slate-50 print:hidden">
       <div role="tablist" className="flex border-b border-slate-300 bg-white">
         {tabs.map(([k, t]) => (
           <button
@@ -56,6 +57,7 @@ export function Sidebar({ data, patch, run, busy }: Props) {
           {busy ? <Loader2 className="size-5 animate-spin" /> : <Shuffle className="size-5" />}
           席替えを実行する
         </button>
+        <UpdateChecker />
       </div>
     </aside>
   );
@@ -64,11 +66,18 @@ export function Sidebar({ data, patch, run, busy }: Props) {
 function Basic({ data, patch }: Omit<Props, "run" | "busy">) {
   const rows = data.seat_model.length;
   const cols = data.seat_model[0]?.length ?? 0;
+  // 全行が空白の列だけを「通路列」として表示（個別セル編集と矛盾させない）
+  const aisleOf = (m: number[][]) =>
+    (m[0] ?? []).map((_, j) => (m.every((row) => row[j] < 0) ? j + 1 : 0)).filter(Boolean).join(",");
   const [r, setR] = useState(rows);
   const [c, setC] = useState(cols);
-  const [aisle, setAisle] = useState(
-    data.seat_model[0]?.map((v, i) => (v < 0 ? i + 1 : 0)).filter(Boolean).join(",") ?? "",
-  );
+  const [aisle, setAisle] = useState(aisleOf(data.seat_model));
+  // マスのクリックでレイアウトが変わったら入力欄も追従させる
+  useEffect(() => {
+    setR(data.seat_model.length);
+    setC(data.seat_model[0]?.length ?? 0);
+    setAisle(aisleOf(data.seat_model));
+  }, [data.seat_model]);
   const seats = seatCount(data.seat_model);
   const mismatch = seats !== data.students.length;
 
@@ -104,6 +113,9 @@ function Basic({ data, patch }: Omit<Props, "run" | "busy">) {
         <p className={`text-xs ${mismatch ? "font-bold text-rose-700" : "text-slate-600"}`}>
           座席 {seats} 席 / 生徒 {data.students.length} 名{mismatch && "（席数と人数を一致させてください）"}
         </p>
+        <p className="text-xs text-slate-600">
+          1席ずつの追加・削除は、画面上部の「レイアウト変更モード」をオンにしてマスをクリックします。
+        </p>
         <button
           className={btn2}
           onClick={() => {
@@ -111,7 +123,7 @@ function Basic({ data, patch }: Omit<Props, "run" | "busy">) {
             patch((d) => ({ ...d, seat_model: makeSeatModel(r, c, a), history: [], front_student_num: d.front_student_num }), true);
           }}
         >
-          レイアウトを適用（座席番号が変わるため履歴もリセット）
+          レイアウトを一括生成（個別に変えた席・履歴もリセット）
         </button>
       </fieldset>
 
@@ -152,8 +164,10 @@ function Roster({ data, patch }: Omit<Props, "run" | "busy">) {
 
   const importPaste = () => {
     const list = paste.split("\n").map((l) => l.trim()).filter(Boolean).map((l) => {
-      const [no, name, romaji, gender] = l.split(/[,\t]/).map((x) => x.trim());
-      return { ...newStudent(no ?? ""), name: name ?? "", romaji: romaji ?? "", gender: gender || "男" };
+      // Excel の列順: 番号, ローマ字, 性別, 氏名
+      const [no, romaji, gender, name] = l.split(/[,\t]/).map((x) => x.trim());
+      const g = /^(女|F)/i.test(gender ?? "") ? "女" : /^(男|M)/i.test(gender ?? "") ? "男" : gender || "男";
+      return { ...newStudent(no ?? ""), romaji: romaji ?? "", gender: g, name: name ?? "" };
     });
     if (list.length) { append(list); setPaste(""); }
   };
@@ -162,7 +176,7 @@ function Roster({ data, patch }: Omit<Props, "run" | "busy">) {
   return (
     <div className="space-y-3">
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[440px] border-collapse text-xs">
+        <table className="w-full min-w-110 border-collapse text-xs">
           <thead className="text-left text-slate-600">
             <tr>
               {["番号", "氏名", "ローマ字", "性", "寮", "留", "前", "固定席", ""].map((h) => (
@@ -201,8 +215,8 @@ function Roster({ data, patch }: Omit<Props, "run" | "busy">) {
 
       <details className="rounded border border-slate-300 bg-white p-2">
         <summary className="cursor-pointer text-sm text-slate-800">名簿を一括貼り付け</summary>
-        <p className="my-1 text-xs text-slate-600">1行1名。番号,氏名,ローマ字,性別（カンマまたはタブ区切り。Excelからそのまま貼れます）</p>
-        <textarea className={`${inp} h-28 font-mono text-xs`} value={paste} onChange={(e) => setPaste(e.target.value)} placeholder={"1,青木 太郎,AOKI Taro,男\n2,石田 花子,ISHIDA Hanako,女"} />
+        <p className="my-1 text-xs text-slate-600">1行1名。番号,ローマ字,性別,氏名（カンマまたはタブ区切り。Excelからそのまま貼れます）</p>
+        <textarea className={`${inp} h-28 font-mono text-xs`} value={paste} onChange={(e) => setPaste(e.target.value)} placeholder={"1,AOKI Taro,男,青木 太郎\n2,ISHIDA Hanako,女,石田 花子"} />
         <button className={`${btn2} mt-2`} onClick={importPaste}>末尾に追加</button>
       </details>
     </div>

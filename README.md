@@ -1,12 +1,7 @@
-# Seat shuffler
-This program was created to shuffle seats for my high school class, written in Rust.
+# Tauri + React + Typescript
 
-## How to use
-1. Create "config.json" according to "config_sample.json"
-2. Just run the following command;
-```bash
-cargo run
-```
-## Features
-- Places students with poor eyesight in the front seats.
-- Assigns students to seats they have never sat in before.
+This template should help get you started developing with Tauri, React and Typescript in Vite.
+
+## Recommended IDE Setup
+
+- [VS Code](https://code.visualstudio.com/) + [Tauri](https://marketplace.visualstudio.com/items?itemName=tauri-apps.tauri-vscode) + [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer)

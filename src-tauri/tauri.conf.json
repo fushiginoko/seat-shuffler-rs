@@ -21,7 +21,7 @@
       "csp": null
     }
   },
-  "bundle": {
+  "bundle": { "createUpdaterArtifacts": true,
     "active": true,
     "targets": "all",
     "icon": [
@@ -31,5 +31,11 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ]
+  },
+"plugins": {
+  "updater":{
+    "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEU2RTE2QzUwQjMzRENDQjcKUldTM3pEMnpVR3poNXNNMkF4c0Nuejd0Z3dLSFhueWNvSXpGWTZQR3Y0S1JSbUFZZ3NLOFJERnQK",
+    "endpoints": ["https://github.com/fushiginoko/seat-shuffler-rs/releases/latest/download/latest.json"]
   }
+}
 }

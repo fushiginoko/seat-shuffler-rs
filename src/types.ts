@@ -47,3 +47,27 @@ export const newStudent = (no: string): Student => ({
   is_abroad: false,
   fixed_seat: null,
 });
+
+/**
+ * (r, c) の座席 ⇄ 空白（-1）を切り替え、左上→右下で 0,1,2... に再採番する。
+ * map は「旧座席番号 → 新座席番号」（同じマスの対応。消えた席は含まれない）。
+ * 履歴・固定席・現在の配置をこの map で付け替えることで、席を増減しても情報を失わない。
+ */
+export function toggleSeat(
+  old: number[][],
+  r: number,
+  c: number,
+): { model: number[][]; map: Map<number, number> } {
+  let n = 0;
+  const map = new Map<number, number>();
+  const model = old.map((row, i) =>
+    row.map((v, j) => {
+      const isSeat = i === r && j === c ? v < 0 : v >= 0;
+      if (!isSeat) return -1;
+      const k = n++;
+      if (v >= 0) map.set(v, k);
+      return k;
+    }),
+  );
+  return { model, map };
+}
