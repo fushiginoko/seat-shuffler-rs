@@ -1,12 +1,28 @@
 import { Pin } from "lucide-react";
 import type { Student } from "./types";
 
-const tone = (g: string) =>
-  g === "男"
-    ? "border-slate-400 bg-slate-100"
-    : g === "女"
-      ? "border-rose-300 bg-rose-50"
-      : "border-slate-300 bg-white";
+// 印刷時にも確実に色が乗るようにインラインスタイルで完全保証
+const getCardStyle = (g: string) => {
+  if (g === "男") {
+    return {
+      backgroundColor: "#dbeafe", // 確実な薄青 (Tailwind blue-100)
+      WebkitPrintColorAdjust: "exact" as const,
+      printColorAdjust: "exact" as const,
+    };
+  }
+  if (g === "女") {
+    return {
+      backgroundColor: "#fce7f3", // 確実な薄ピンク (Tailwind pink-100)
+      WebkitPrintColorAdjust: "exact" as const,
+      printColorAdjust: "exact" as const,
+    };
+  }
+  return {
+    backgroundColor: "#ffffff",
+    WebkitPrintColorAdjust: "exact" as const,
+    printColorAdjust: "exact" as const,
+  };
+};
 
 export function SeatCard({ student, seatNo }: { student?: Student; seatNo: number }) {
   if (!student) {
@@ -18,23 +34,29 @@ export function SeatCard({ student, seatNo }: { student?: Student; seatNo: numbe
   }
   const sub =
     student.is_dorm && student.is_abroad ? "寮（留学中）" : student.is_dorm ? "寮" : student.is_abroad ? "留学中" : "";
+
   return (
     <div
-      className={`relative flex min-w-0 flex-col justify-between rounded-md border px-2 py-1.5 print:rounded-none print:border-black print:bg-white ${tone(student.gender)}`}
+      style={getCardStyle(student.gender)}
+      // 🚨 print:bg-white を完全削除！ 枠線も印刷時にハッキリ出るように調整
+      className="relative flex min-w-0 flex-col justify-between rounded-md border border-slate-400 px-2 py-1.5 print:rounded-none print:border-slate-800"
     >
-      <div className="grid grid-cols-[auto_1fr_auto] items-center gap-1.5 text-xs text-slate-700 print:text-[8.5pt] print:text-black">
+      <div className="grid grid-cols-[auto_1fr_auto] items-center gap-1 text-xs text-slate-700 print:text-[8pt] print:text-black">
         <span className="font-bold tabular-nums">{student.student_no}</span>
-        <span className="max-w-full truncate text-center tracking-wide text-[11px] text-slate-500 print:text-[8pt] print:text-black">
+
+        {/* 🚨 ローマ字: min-w-0追加、print:text-[6.5pt]に縮小、tracking-tighterで絶対に見切れない */}
+        <span className="min-w-0 max-w-full truncate text-center tracking-normal text-[11px] text-slate-600 print:text-[6.5pt] print:tracking-tighter print:text-black">
           {student.romaji}
         </span>
-        <span className="font-medium text-slate-800 print:text-black">{student.gender}</span>
+
+        <span className="font-bold text-slate-800 print:text-black">{student.gender}</span>
       </div>
 
-      <div className="truncate text-center text-[clamp(15px,1.8vw,24px)] font-bold leading-tight text-slate-900 print:text-[14pt] print:text-black my-0.5">
+      <div className="truncate text-center text-[clamp(15px,1.8vw,24px)] font-bold leading-tight text-slate-900 print:text-[13pt] print:text-black my-0.5">
         {student.name}
       </div>
 
-      <div className="flex h-4 items-center justify-between text-[11px] font-semibold text-slate-700 print:text-[8.5pt] print:text-black">
+      <div className="flex h-4 items-center justify-between text-[11px] font-semibold text-slate-700 print:text-[8pt] print:text-black">
         <span className="w-3" />
         <span className="tracking-wider">{sub}</span>
         <span className="w-3">
