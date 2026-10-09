@@ -30,6 +30,7 @@ body,
     box-shadow: none !important;
   }
   .sheet {
+    zoom: 0.92;
     break-inside: avoid;
     page-break-after: avoid;
   }
